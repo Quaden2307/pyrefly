@@ -4638,3 +4638,25 @@ greet(name="x")
     );
     assert_eq!(report.matches("Who to greet").count(), 2);
 }
+
+#[test]
+fn hover_on_override_without_docstring_shows_base_docstring() {
+    let code = r#"
+class SettingsProvider:
+    def get_setting(self, key: str) -> str | None:
+        """Return the setting value, or None if it is not configured."""
+        return None
+
+class DictSettingsProvider(SettingsProvider):
+    def get_setting(self, key: str) -> str | None:
+        return None
+
+DictSettingsProvider().get_setting("x")
+#                        ^
+"#;
+    let report = get_batched_lsp_operations_report(&[("main", code)], get_test_report);
+    assert!(
+        report.contains("Return the setting value"),
+        "Expected base class docstring on override hover, got: {report}"
+    );
+}
