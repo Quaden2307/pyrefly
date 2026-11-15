@@ -4660,3 +4660,22 @@ DictSettingsProvider().get_setting("x")
         "Expected base class docstring on override hover, got: {report}"
     );
 }
+
+#[test]
+fn hover_on_override_with_docstring_prefers_own_docstring() {
+    let code = r#"
+class Base:
+    def f(self) -> None:
+        """Base docstring."""
+
+class Child(Base):
+    def f(self) -> None:
+        """Child docstring."""
+
+Child().f()
+#       ^
+"#;
+    let report = get_batched_lsp_operations_report(&[("main", code)], get_test_report);
+    assert!(report.contains("Child docstring."), "got: {report}");
+    assert!(!report.contains("Base docstring."), "got: {report}");
+}
