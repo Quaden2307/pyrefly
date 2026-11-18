@@ -4679,3 +4679,65 @@ Child().f()
     assert!(report.contains("Child docstring."), "got: {report}");
     assert!(!report.contains("Base docstring."), "got: {report}");
 }
+
+#[test]
+fn hover_on_override_falls_back_to_base_py_docstring() {
+    let mut test_env = TestEnv::new();
+    test_env.add_with_path(
+        "lib",
+        "lib.py",
+        r#"class Base:
+    def f(self) -> None:
+        """Base documentation."""
+
+    def g(self) -> None:
+        """Implementation documentation."""
+"#,
+    );
+    test_env.add_with_path(
+        "lib",
+        "lib.pyi",
+        r#"class Base:
+    def f(self) -> None: ...
+    def g(self) -> None:
+        """Stub documentation."""
+"#,
+    );
+    let main_code = r#"from lib import Base
+
+class Child(Base):
+    def f(self) -> None:
+        pass
+
+    def g(self) -> None:
+        pass
+
+Child().f()
+#       ^
+Child().g()
+#       ^
+"#;
+    test_env.add("main", main_code);
+    let (state, handle) = test_env.to_state();
+    let main_handle = handle("main");
+    let reports = extract_cursors_for_test(main_code)
+        .into_iter()
+        .map(|position| get_test_report(&state, &main_handle, position))
+        .collect::<Vec<_>>();
+
+    assert!(
+        reports[0].contains("Base documentation."),
+        "got: {}",
+        reports[0]
+    );
+    assert!(
+        reports[1].contains("Stub documentation."),
+        "got: {}",
+        reports[1]
+    );
+    assert!(
+        !reports[1].contains("Implementation documentation."),
+        "got: {}",
+        reports[1]
+    );
+}

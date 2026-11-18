@@ -1526,7 +1526,8 @@ fn class_docstring_for_constructor(
 }
 
 /// Docstring inherited from the nearest base class method with the same name, for a
-/// method override that has no docstring of its own.
+/// method override that has no docstring of its own. For each base class, a stub
+/// docstring wins over the implementation.
 fn inherited_method_docstring(
     transaction: &Transaction<'_>,
     handle: &Handle,
@@ -1542,19 +1543,29 @@ fn inherited_method_docstring(
                 .ancestors_no_object()
                 .to_vec()
         })?;
+    let preferences = [
+        FindPreference::default(),
+        FindPreference {
+            prefer_pyi: false,
+            include_interpreter_stdlib: true,
+            ..FindPreference::default()
+        },
+    ];
     ancestors.into_iter().find_map(|ancestor| {
-        let item = transaction
-            .find_attribute_definition_for_base_type(
-                handle,
-                FindPreference::default(),
-                Type::ClassType(ancestor),
-                &name,
-            )
-            .ok()?
-            .into_vec()
-            .into_iter()
-            .next()?;
-        nonempty_docstring(Docstring(item.doc_ranges.docstring()?, item.module))
+        preferences.into_iter().find_map(|preference| {
+            let item = transaction
+                .find_attribute_definition_for_base_type(
+                    handle,
+                    preference,
+                    Type::ClassType(ancestor.clone()),
+                    &name,
+                )
+                .ok()?
+                .into_vec()
+                .into_iter()
+                .next()?;
+            nonempty_docstring(Docstring(item.doc_ranges.docstring()?, item.module))
+        })
     })
 }
 
